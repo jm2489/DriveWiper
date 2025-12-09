@@ -17,6 +17,7 @@ import json
 import os
 import subprocess
 import sys
+from parsers.hdparm_parser import parse_hdparm_identity
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 
@@ -100,13 +101,11 @@ def print_drive_table(devices: List[Dict[str, Any]]) -> None:
             f"{(d.get('model') or '')}"
         )
 
-
-def get_hdparm_info(device: str) -> Optional[str]:
-    """Return hdparm -I output as string, or None on error."""
+def get_hdparm_info(device: str):
     result = run_cmd(["hdparm", "-I", device])
-    if result.returncode != 0:
+    if result.returncode != 0 or not result.stdout:
         return None
-    return result.stdout
+    return parse_hdparm_identity(result.stdout)
 
 
 def sample_hash(device: str, num_bytes: int) -> Optional[str]:

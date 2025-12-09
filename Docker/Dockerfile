@@ -21,6 +21,7 @@ RUN apt-get update && \
 
 WORKDIR /wiper
 COPY wipe_drive.py /wiper/wipe_drive.py
+COPY parsers /wiper/parsers
 COPY entrypoint.sh /wiper/entrypoint.sh
 RUN chmod +x /wiper/wipe_drive.py
 
