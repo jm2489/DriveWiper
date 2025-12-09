@@ -15,6 +15,7 @@ RUN apt-get update && \
         util-linux \
         parted \
         python3 \
+        jq \
         && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
@@ -24,4 +25,4 @@ COPY entrypoint.sh /wiper/entrypoint.sh
 RUN chmod +x /wiper/wipe_drive.py
 
 # keep your entrypoint or swap to Python tool later
-CMD ["/bin/bash"]
+ENTRYPOINT ["/wiper/entrypoint.sh"]

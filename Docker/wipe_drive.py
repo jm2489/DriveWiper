@@ -23,6 +23,10 @@ from typing import Dict, Any, Optional, List
 LOG_DIR = Path("/var/wipelog")
 DEFAULT_SAMPLE_BYTES = 10 * 1024 * 1024  # 10 MiB
 
+def utc_now_iso() -> str:
+    """Return ISO8601 UTC timestamp without microseconds, ending with Z."""
+    return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
 
 def run_cmd(cmd: List[str], capture_output: bool = True) -> subprocess.CompletedProcess:
     """Run a command and return CompletedProcess, raising on failure if not handled."""
@@ -175,9 +179,9 @@ def ata_secure_erase(device: str, password: str = "p") -> Dict[str, Any]:
 
 def write_log(record: Dict[str, Any]) -> None:
     LOG_DIR.mkdir(parents=True, exist_ok=True)
-    day = dt.date.today().isoformat()
+    day = utc_now_iso()
     log_file = LOG_DIR / f"wipes-{day}.jsonl"
-    record["logged_at"] = dt.datetime.utcnow().isoformat() + "Z"
+    record["logged_at"] = utc_now_iso()
     with log_file.open("a", encoding="utf-8") as f:
         f.write(json.dumps(record) + "\n")
 
@@ -213,7 +217,7 @@ def do_wipe(
 
     pre_hash = sample_hash(device, sample_bytes) if sample_bytes > 0 else None
 
-    started_at = dt.datetime.utcnow().isoformat() + "Z"
+    started_at = utc_now_iso()
 
     # Run selected method
     if method == "ata-secure-erase":
@@ -235,7 +239,7 @@ def do_wipe(
         print(f"[ERROR] Unsupported method: {method}", file=sys.stderr)
         sys.exit(1)
 
-    ended_at = dt.datetime.utcnow().isoformat() + "Z"
+    ended_at = utc_now_iso()
 
     hdparm_after = get_hdparm_info(device)
     post_hash = sample_hash(device, sample_bytes) if sample_bytes > 0 else None
