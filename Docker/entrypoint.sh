@@ -20,9 +20,10 @@ echo "[Info] Detected block devices:"
 lsblk -d -o NAME,SIZE,MODEL,SERIAL || true
 echo
 
-# No command given: just configure logging and stay on standby
-echo "[Info] No command provided. Running logging check and going into standby..."
+echo "[Info] Configuring logging..."
+mkdir -p "$LOG_DIR"
 python3 configure_logging.py --log-dir "$LOG_DIR"
+echo "[Info] Logging configured. Logs will be stored in: $LOG_DIR"
 echo
 
 # If a command is given, run that instead (e.g., bash, python ...)
