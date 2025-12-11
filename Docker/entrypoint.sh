@@ -20,18 +20,22 @@ echo "[Info] Detected block devices:"
 lsblk -d -o NAME,SIZE,MODEL,SERIAL || true
 echo
 
+# No command given: just configure logging and stay on standby
+echo "[Info] No command provided. Running logging check and going into standby..."
+python3 configure_logging.py --log-dir "$LOG_DIR"
+echo
+
+# If a command is given, run that instead (e.g., bash, python ...)
 if [ $# -gt 0 ]; then
-    # If user passed a command (e.g. 'bash', 'nwipe', or manual python)
     echo "[Info] Executing command: $*"
     echo
     exec "$@"
 fi
 
-# Default behavior: configure logging, then run the wiper
-echo "[Info] No command provided. Running drive wiper..."
-echo "[Info] Checking logging configuration..."
-python3 configure_logging.py || true
+echo "[Info] Drive Wiper is ready. To run a wipe, use:"
+echo "       docker exec -it drive-wiper python3 /wiper/wipe_drive.py --list"
+echo "       docker exec -it drive-wiper python3 /wiper/wipe_drive.py --device /dev/sdX --dry-run"
 echo
 
-echo "[Info] Starting wipe_drive.py"
-exec python3 wipe_drive.py
+# Keep the container running
+exec tail -f /dev/null

@@ -17,14 +17,10 @@ RUN apt-get update && \
         parted \
         python3 \
         python3-pip \
+        python3-psycopg2 \
         jq \
         && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
-
-# Install Python dependencies (DB logging etc.)
-# If you later add a requirements.txt, switch this to `-r requirements.txt`
-RUN python3 -m pip install --no-cache-dir \
-        psycopg2-binary
 
 # App directory
 WORKDIR /wiper
