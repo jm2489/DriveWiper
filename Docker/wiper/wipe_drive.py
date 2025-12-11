@@ -6,9 +6,9 @@ Features (MVP):
 - List candidate drives:        --list
 - Wipe a drive via hdparm:      --device /dev/sdX --method ata-secure-erase
 - Optional pre/post sample hash: --sample-bytes 10485760
-- Logs JSON lines to /var/wipelog/wipes-YYYY-MM-DD.jsonl
-
-Run as root, typically inside your Docker container with /dev and /var/wipelog mounted.
+- Logs events via logging_manager:
+    - Primary: PostgreSQL (if enabled and reachable)
+    - Fallback: JSONL file using FileLogger (LOG_FALLBACK_DIR)
 """
 
 import argparse
@@ -17,16 +17,23 @@ import json
 import os
 import subprocess
 import sys
-from parsers.hdparm_parser import parse_hdparm_identity
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 
-LOG_DIR = Path("/var/wipelog")
+from parsers.hdparm_parser import parse_hdparm_identity
+from logging_manager import log_wipe_event
+
 DEFAULT_SAMPLE_BYTES = 10 * 1024 * 1024  # 10 MiB
+
 
 def utc_now_iso() -> str:
     """Return ISO8601 UTC timestamp without microseconds, ending with Z."""
-    return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return (
+        dt.datetime.now(dt.timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
 
 
 def run_cmd(cmd: List[str], capture_output: bool = True) -> subprocess.CompletedProcess:
@@ -100,6 +107,7 @@ def print_drive_table(devices: List[Dict[str, Any]]) -> None:
             f"{(d.get('serial') or ''):<20} "
             f"{(d.get('model') or '')}"
         )
+
 
 def get_hdparm_info(device: str):
     result = run_cmd(["hdparm", "-I", device])
@@ -176,15 +184,6 @@ def ata_secure_erase(device: str, password: str = "p") -> Dict[str, Any]:
     return result
 
 
-def write_log(record: Dict[str, Any]) -> None:
-    LOG_DIR.mkdir(parents=True, exist_ok=True)
-    day = utc_now_iso()
-    log_file = LOG_DIR / f"wipes-{day}.jsonl"
-    record["logged_at"] = utc_now_iso()
-    with log_file.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(record) + "\n")
-
-
 def do_wipe(
     device: str,
     method: str,
@@ -230,7 +229,6 @@ def do_wipe(
                     {"step": "security-erase", "simulated": True},
                 ],
                 "success": True,
-                "dry_run": True,
             }
         else:
             method_result = ata_secure_erase(device)
@@ -262,7 +260,11 @@ def do_wipe(
         "result": "PASS" if method_result.get("success") else "FAIL",
     }
 
-    write_log(record)
+    # Add logged_at here so DB + file logging both see it
+    record["logged_at"] = utc_now_iso()
+
+    # Centralized logging (DB first, fallback to file)
+    log_wipe_event(record)
 
     # Human-readable summary
     print(f"\n=== WIPE SUMMARY {'(DRY RUN)' if dry_run else ''} ===")
@@ -289,7 +291,7 @@ def do_wipe(
         )
 
     if not method_result.get("success"):
-        print("\n[ERROR] Wipe reported failure. See log file for details.", file=sys.stderr)
+        print("\n[ERROR] Wipe reported failure. See log for details.", file=sys.stderr)
 
 
 def parse_args() -> argparse.Namespace:
