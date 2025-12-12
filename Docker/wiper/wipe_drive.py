@@ -58,31 +58,62 @@ def ensure_root():
 
 
 def list_drives() -> List[Dict[str, Any]]:
-    """Use lsblk JSON to list physical disks (not partitions/loops)."""
-    result = run_cmd(["lsblk", "-J", "-o", "NAME,TYPE,SIZE,MODEL,SERIAL,TRAN"])
+    """
+    Enumerate physical disks (not partitions/loops) and enrich identity with hdparm.
+
+    Why:
+      - lsblk is great for discovering disks + size/transport.
+      - Serial/Model are not guaranteed from lsblk/udev for all devices.
+      - hdparm -I is typically the most reliable for ATA/SATA identity.
+
+    Notes:
+      - We only try hdparm -I for /dev/sdX-style disks.
+      - If hdparm fails (common for some USB bridges), we keep going and record an error.
+    """
+    result = run_cmd(["lsblk", "-J", "-o", "NAME,TYPE,SIZE,TRAN"])
     if result.returncode != 0:
         print("[ERROR] lsblk failed:", result.stderr, file=sys.stderr)
         sys.exit(result.returncode)
 
     data = json.loads(result.stdout)
-    devices = []
+    devices: List[Dict[str, Any]] = []
 
-    def walk(block):
+    def walk(block: Dict[str, Any]) -> None:
         if block.get("type") == "disk":
-            # skip loop/ram if present as disks
             name = block.get("name")
-            if name and name.startswith(("loop", "ram")):
+            if not name or name.startswith(("loop", "ram")):
                 return
-            devices.append(
-                {
-                    "name": name,
-                    "path": f"/dev/{name}",
-                    "size": block.get("size"),
-                    "model": block.get("model"),
-                    "serial": block.get("serial"),
-                    "transport": block.get("tran"),
-                }
-            )
+
+            path = f"/dev/{name}"
+
+            dev: Dict[str, Any] = {
+                "name": name,
+                "path": path,
+                "size": block.get("size"),
+                "model": None,
+                "serial": None,
+                "firmware": None,
+                "transport": block.get("tran"),
+            }
+
+            # hdparm -I is mainly for ATA/SATA disks that show up as /dev/sdX
+            if name.startswith("sd"):
+                hd = run_cmd(["hdparm", "-I", path])
+                if hd.returncode == 0 and hd.stdout:
+                    ident = parse_hdparm_identity(hd.stdout) or {}
+                    # Be tolerant of parser key naming
+                    dev["model"] = ident.get("model") or ident.get("model_number") or ident.get("Model_Number")
+                    dev["serial"] = ident.get("serial") or ident.get("serial_number") or ident.get("Serial_Number")
+                    dev["firmware"] = (
+                        ident.get("firmware")
+                        or ident.get("firmware_revision")
+                        or ident.get("Firmware_Revision")
+                    )
+                else:
+                    dev["hdparm_error"] = (hd.stderr or "").strip()
+
+            devices.append(dev)
+
         for child in block.get("children", []) or []:
             walk(child)
 

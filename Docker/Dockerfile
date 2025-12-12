@@ -34,5 +34,6 @@ RUN mkdir -p /wiper/logs
 # copy entrypoint
 COPY Docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
+RUN chmod +x /wiper/wipe_drive.py
 
 ENTRYPOINT ["/entrypoint.sh"]
