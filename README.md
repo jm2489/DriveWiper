@@ -125,6 +125,64 @@ LOG_FALLBACK_DIR=/wiper/logs
 
 ---
 
+
+# Host Setup Scripts (Ubuntu 24.04)
+
+These helper scripts prepare (and remove) the host Docker environment used by this project.
+
+## setup.sh (Docker + dependencies installer)
+
+**Purpose:** Install Docker Engine + Docker Compose plugin, then install DriveWiper utilities (`hdparm`, `nvme-cli`, `smartmontools`, `python3`, `jq`, etc.). The script is safe to re-run and will remove older/conflicting Docker packages first. fileciteturn2file2
+
+### Run it
+
+From the project root:
+
+```bash
+chmod +x setup.sh
+sudo ./setup.sh
+```
+
+### What it does (high level)
+
+- Validates you are running as root (`sudo`). fileciteturn2file0
+- Detects Ubuntu codename and warns if not **noble** (24.04). fileciteturn2file0
+- Removes old Docker packages (if present), updates APT, installs prerequisites. fileciteturn2file0
+- Adds Docker’s official GPG key + APT repo and installs:
+  - `docker-ce`, `docker-ce-cli`, `containerd.io`
+  - `docker-buildx-plugin`, `docker-compose-plugin` fileciteturn2file2
+- Enables/starts the Docker service. fileciteturn2file2
+- Installs DriveWiper host utilities (`hdparm`, `nvme-cli`, `smartmontools`, `python3`, `jq`, etc.). fileciteturn2file2
+- Adds the invoking user (from `$SUDO_USER`, default `ubuntu`) to the `docker` group. **Log out/in (or reboot)** for this to take effect. fileciteturn2file2
+- Runs a `hello-world` container test and prints an install summary. fileciteturn2file0
+
+## uninstall.sh (Docker environment remover)
+
+**Purpose:** Remove Docker Engine, related packages, Docker data directories, and the Docker APT repo/key from the host. fileciteturn2file1
+
+### Run it
+
+```bash
+chmod +x uninstall.sh
+sudo ./uninstall.sh
+```
+
+### What it removes
+
+- Stops Docker + containerd services. fileciteturn2file1
+- Purges Docker packages and autoremoves dependencies. fileciteturn2file1
+- Deletes Docker data/config directories:
+  - `/var/lib/docker`
+  - `/var/lib/containerd`
+  - `/etc/docker` fileciteturn2file1
+- Removes Docker APT repo list + GPG key:
+  - `/etc/apt/sources.list.d/docker.list`
+  - `/etc/apt/keyrings/docker.gpg` fileciteturn2file1
+
+> Note: The script leaves the `docker` group and user memberships intact. If you want to fully remove the group, you can run `groupdel docker` (only if nothing else uses it). fileciteturn2file1
+
+---
+
 # Docker Usage
 
 ## Docker build & run
